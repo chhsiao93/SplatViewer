@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Splat Viewer</title>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@latest/build/playcanvas.mjs"
+    }
+  }
+  </script>
+
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@latest/dist/pwc.mjs"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    pc-app {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <pc-app antialias="false" high-resolution="false">
+    <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas/scripts/esm/camera-controls.mjs"></pc-asset>
+    <!-- <pc-asset id="toy" src="https://developer.playcanvas.com/assets/toy-cat.sog"></pc-asset> -->
+    <pc-asset id="toy"
+          src="./clawsy_cat.sog">
+    </pc-asset>
+    <pc-scene>
+      <pc-entity position="0 0 2.5">
+        <pc-camera></pc-camera>
+        <pc-scripts>
+          <pc-script name="cameraControls"></pc-script>
+        </pc-scripts>
+      </pc-entity>
+
+      <pc-entity position="0 -0.7 0" rotation="-90 0 0">
+        <pc-splat asset="toy"></pc-splat>
+      </pc-entity>
+    </pc-scene>
+  </pc-app>
+</body>
+</html>
