@@ -14,42 +14,459 @@
   </script>
 
   <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@latest/dist/pwc.mjs"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    html, body {
-      margin: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-
-    pc-app {
-      width: 100vw;
-      height: 100vh;
-      display: block;
-    }
+    pc-app { display: block; width: 100%; height: 100%; }
+    #sidebar { transition: transform 0.25s ease; }
   </style>
 </head>
 
-<body>
-  <pc-app antialias="false" high-resolution="false">
-    <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas/scripts/esm/camera-controls.mjs"></pc-asset>
-    <!-- <pc-asset id="toy" src="https://developer.playcanvas.com/assets/toy-cat.sog"></pc-asset> -->
-    <pc-asset id="toy"
-          src="./clawsy_cat.sog">
-    </pc-asset>
-    <pc-scene>
-      <pc-entity position="0 0 2.5">
-        <pc-camera></pc-camera>
-        <pc-scripts>
-          <pc-script name="cameraControls"></pc-script>
-        </pc-scripts>
-      </pc-entity>
+<body class="bg-gray-950 text-white h-screen flex flex-col overflow-hidden">
 
-      <pc-entity position="0 -0.7 0" rotation="-90 0 0">
-        <pc-splat asset="toy"></pc-splat>
-      </pc-entity>
-    </pc-scene>
-  </pc-app>
+  <!-- Header -->
+  <header class="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-3 shrink-0">
+    <button id="menu-btn"
+      class="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors shrink-0"
+      aria-label="Open scene menu">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <div class="flex items-center gap-2 shrink-0">
+      <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+      </svg>
+      <span class="font-semibold text-white tracking-tight">Splat Viewer</span>
+    </div>
+    <span id="header-subtitle" class="ml-auto text-sm text-gray-500 italic truncate max-w-[40vw] md:max-w-xs"></span>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden relative">
+
+    <!-- Backdrop (mobile) -->
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/60 z-30 hidden md:hidden" aria-hidden="true"></div>
+
+    <!-- Sidebar / Drawer -->
+    <aside id="sidebar"
+      class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-900 border-r border-gray-800
+             flex flex-col overflow-y-auto -translate-x-full
+             md:relative md:inset-auto md:z-auto md:w-52 md:translate-x-0 md:shrink-0">
+
+      <!-- Mobile header row -->
+      <div class="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <span class="text-sm font-semibold text-gray-300">Scenes</span>
+        <button id="close-btn"
+          class="flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+          aria-label="Close menu">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Scene nav -->
+      <div class="p-3 pt-4">
+        <p class="hidden md:block text-xs font-semibold text-gray-600 uppercase tracking-widest mb-3 px-1">Scenes</p>
+        <div id="scene-nav" class="space-y-1"></div>
+      </div>
+
+      <!-- Layers panel — shown when active variant has layers -->
+      <div id="layers-section" class="hidden px-3 pb-4">
+        <div class="border-t border-gray-800 pt-4">
+          <p class="text-xs font-semibold text-gray-600 uppercase tracking-widest mb-2 px-1">Layers</p>
+          <div id="layers-nav" class="space-y-1"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Viewer -->
+    <main class="flex-1 relative bg-black overflow-hidden">
+
+      <!-- Empty state -->
+      <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-center z-10">
+        <svg class="w-12 h-12 text-gray-700 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+        </svg>
+        <p class="text-gray-600 text-sm">Select a scene to begin</p>
+        <p class="md:hidden mt-2 text-gray-700 text-xs">Tap ☰ to choose a scene</p>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="loading-overlay"
+        class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 hidden">
+        <div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p class="text-gray-400 text-sm">Loading scene…</p>
+      </div>
+
+      <!-- Stats panel -->
+      <div id="stats-panel"
+        class="absolute top-3 right-3 z-10 hidden font-mono text-xs bg-black/60 text-green-400 rounded overflow-hidden">
+        <div class="flex items-center justify-between gap-4 px-2.5 py-1 border-b border-white/10">
+          <span class="text-white/40">FPS</span><span id="stat-fps">—</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 px-2.5 py-1 border-b border-white/10">
+          <span class="text-white/40">Splats</span><span id="stat-gsplats">—</span>
+        </div>
+        <div class="flex items-center justify-between gap-4 px-2.5 py-1">
+          <span class="text-white/40">VRAM</span><span id="stat-vram">—</span>
+        </div>
+      </div>
+
+      <div id="viewer-container" class="w-full h-full"></div>
+    </main>
+  </div>
+
+  <script>
+    // ── Scene definitions ──────────────────────────────────────────────────
+    // Each variant holds a `layers` array. The terrain layer is shared across
+    // all flooding variants. Add/remove layers freely — the UI builds itself.
+    const SCENES = [
+      {
+        key: 'normal',
+        label: 'Normal',
+        icon: `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>`,
+        variants: [
+          {
+            id: 'nm-alligator', label: 'Alligator',
+            camPos: '0.5 1.5 1.5', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'scene', label: 'Scene', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/alligator.sog', defaultOn: true },
+            ]
+          },
+        ]
+      },
+      {
+        key: 'flooding',
+        label: 'Flooding',
+        icon: `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+        </svg>`,
+        variants: [
+          {
+            id: 'fl-low', label: 'Low level',
+            camPos: '0.6 0.2 0.4', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'terrain', label: 'Terrain', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_input_bound.sog', defaultOn: true },
+              { id: 'truck',   label: 'Truck',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_low_truck.sog',   defaultOn: true },
+              { id: 'water',   label: 'Water',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_low_water.sog',   defaultOn: true },
+            ]
+          },
+          {
+            id: 'fl-med', label: 'Medium level',
+            camPos: '0.6 0.2 0.4', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'terrain', label: 'Terrain', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_input_bound.sog', defaultOn: true },
+              { id: 'truck',   label: 'Truck',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_med_truck.sog',   defaultOn: true },
+              { id: 'water',   label: 'Water',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_med_water.sog',   defaultOn: true },
+            ]
+          },
+          {
+            id: 'fl-high', label: 'High level',
+            camPos: '0.6 0.2 0.4', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'terrain', label: 'Terrain', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_input_bound.sog', defaultOn: true },
+              { id: 'truck',   label: 'Truck',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_high_truck.sog',  defaultOn: true },
+              { id: 'water',   label: 'Water',   src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_high_water.sog',  defaultOn: true },
+            ]
+          },
+        ]
+      },
+      {
+        key: 'warming',
+        label: 'Warming',
+        icon: `<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>`,
+        variants: [
+          {
+            id: 'wm-mild', label: 'mild',
+            camPos: '0 0.5 1.', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'scene', label: 'Scene', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_low_bound.sog', defaultOn: true },
+            ]
+          },
+          {
+            id: 'wm-mod', label: 'moderate',
+            camPos: '0 0.5 1.', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'scene', label: 'Scene', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_med_bound.sog', defaultOn: true },
+            ]
+          },
+          {
+            id: 'wm-sev', label: 'severe',
+            camPos: '0 0.5 1.', splatPos: '0 0 0', splatRot: '-90 0 0',
+            layers: [
+              { id: 'scene', label: 'Scene', src: 'https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_high_bound.sog', defaultOn: true },
+            ]
+          },
+        ]
+      }
+    ];
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let activeVariantId  = null;
+    let statsRaf         = null;
+    let layerEntityMap   = {};  // layerId → pc-entity element
+    let layerVisibility  = {};  // layerId → boolean
+
+    // ── Drawer (mobile) ────────────────────────────────────────────────────
+    const sidebar  = document.getElementById('sidebar');
+    const backdrop = document.getElementById('drawer-backdrop');
+
+    function openDrawer()  {
+      sidebar.classList.remove('-translate-x-full');
+      backdrop.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDrawer() {
+      sidebar.classList.add('-translate-x-full');
+      backdrop.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    document.getElementById('menu-btn').addEventListener('click', openDrawer);
+    document.getElementById('close-btn').addEventListener('click', closeDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+
+    // ── Scene nav ──────────────────────────────────────────────────────────
+    function buildNav() {
+      const nav = document.getElementById('scene-nav');
+      SCENES.forEach(scene => {
+        const header = document.createElement('div');
+        header.className = 'flex items-center gap-2 px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2';
+        header.innerHTML = scene.icon + `<span>${scene.label}</span>`;
+        nav.appendChild(header);
+
+        scene.variants.forEach(variant => {
+          const btn = document.createElement('button');
+          btn.id = `btn-${variant.id}`;
+          btn.className = variantBtnClass(false);
+          btn.textContent = variant.label;
+          btn.addEventListener('click', () => {
+            selectVariant(scene, variant);
+            closeDrawer();
+          });
+          nav.appendChild(btn);
+        });
+      });
+    }
+
+    function variantBtnClass(active) {
+      const base = 'w-full text-left px-3 py-2 md:py-1.5 rounded-md text-sm transition-colors';
+      return active
+        ? `${base} bg-blue-600/20 text-blue-300 font-medium`
+        : `${base} text-gray-400 hover:bg-gray-800 hover:text-gray-200`;
+    }
+
+    function setActiveButton(variantId) {
+      SCENES.forEach(s => s.variants.forEach(v => {
+        const btn = document.getElementById(`btn-${v.id}`);
+        if (btn) btn.className = variantBtnClass(v.id === variantId);
+      }));
+    }
+
+    // ── Layers panel ───────────────────────────────────────────────────────
+    function buildLayerToggles(variant) {
+      const section = document.getElementById('layers-section');
+      const nav     = document.getElementById('layers-nav');
+      nav.innerHTML = '';
+
+      // Hide the section when there's only one layer (nothing useful to toggle)
+      if (variant.layers.length <= 1) { section.classList.add('hidden'); return; }
+      section.classList.remove('hidden');
+
+      variant.layers.forEach(layer => {
+        const btn = document.createElement('button');
+        btn.id = `layer-btn-${layer.id}`;
+        btn.className = 'w-full flex items-center gap-2.5 px-3 py-2 md:py-1.5 rounded-md text-sm transition-colors hover:bg-gray-800';
+        btn.addEventListener('click', () => toggleLayer(layer.id));
+        nav.appendChild(btn);
+        renderLayerBtn(layer.id, layerVisibility[layer.id] ?? layer.defaultOn);
+      });
+    }
+
+    function renderLayerBtn(layerId, visible) {
+      const btn = document.getElementById(`layer-btn-${layerId}`);
+      if (!btn) return;
+
+      const layer = findLayer(layerId);
+      if (!layer) return;
+
+      btn.innerHTML = visible
+        ? `<span class="w-4 h-4 rounded border border-blue-500 bg-blue-500 flex items-center justify-center shrink-0">
+             <svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+             </svg>
+           </span>
+           <span class="text-gray-200">${layer.label}</span>`
+        : `<span class="w-4 h-4 rounded border border-gray-600 shrink-0"></span>
+           <span class="text-gray-500">${layer.label}</span>`;
+    }
+
+    function findLayer(layerId) {
+      for (const s of SCENES) for (const v of s.variants)
+        for (const l of v.layers) if (l.id === layerId) return l;
+      return null;
+    }
+
+    function toggleLayer(layerId) {
+      const newVisible = !(layerVisibility[layerId] ?? true);
+      layerVisibility[layerId] = newVisible;
+      renderLayerBtn(layerId, newVisible);
+
+      const el = layerEntityMap[layerId];
+      if (!el) return;
+      // Primary: PlayCanvas entity API
+      if (el.entity) { el.entity.enabled = newVisible; return; }
+      // Fallback: attribute
+      el.setAttribute('enabled', String(newVisible));
+    }
+
+    // ── Variant selection ──────────────────────────────────────────────────
+    function selectVariant(scene, variant) {
+      if (activeVariantId === variant.id) return;
+      activeVariantId = variant.id;
+      setActiveButton(variant.id);
+      document.getElementById('header-subtitle').textContent =
+        `${scene.label} — ${variant.label}`;
+      loadViewer(variant);
+    }
+
+    // ── Stats ──────────────────────────────────────────────────────────────
+    function fmtVram(bytes) {
+      if (!bytes) return '—';
+      const mb = bytes / (1024 * 1024);
+      return mb >= 1000 ? `${(mb / 1024).toFixed(1)} GB` : `${mb.toFixed(0)} MB`;
+    }
+    function fmtCount(n) {
+      if (!n && n !== 0) return '—';
+      return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
+           : n >= 1_000     ? `${(n / 1_000).toFixed(1)}K`
+           : String(n);
+    }
+
+    function startStats(appEl, variant) {
+      const panel = document.getElementById('stats-panel');
+      panel.classList.add('hidden');
+      if (statsRaf) cancelAnimationFrame(statsRaf);
+
+      let attempts = 0;
+      const wait = setInterval(() => {
+        if (++attempts > 80) { clearInterval(wait); return; }
+        if (!appEl.app) return;
+        clearInterval(wait);
+
+        // Apply defaultOn: false for any layers that start hidden.
+        variant.layers.forEach(layer => {
+          if (!layer.defaultOn) {
+            layerVisibility[layer.id] = false;
+            const el = layerEntityMap[layer.id];
+            if (el?.entity) el.entity.enabled = false;
+            else if (el) el.setAttribute('enabled', 'false');
+          }
+        });
+
+        panel.classList.remove('hidden');
+
+        let frameCount = 0;
+        let windowStart = performance.now();
+
+        function tick(now) {
+          frameCount++;
+          const elapsed = now - windowStart;
+          if (elapsed >= 500) {
+            const s = appEl.app.stats;
+            document.getElementById('stat-fps').textContent     = Math.round((frameCount * 1000) / elapsed);
+            document.getElementById('stat-gsplats').textContent = fmtCount(s.frame.gsplats);
+            document.getElementById('stat-vram').textContent    = fmtVram(s.vram?.totalUsed);
+            frameCount = 0; windowStart = now;
+          }
+          statsRaf = requestAnimationFrame(tick);
+        }
+        statsRaf = requestAnimationFrame(tick);
+      }, 100);
+    }
+
+    // ── Viewer lifecycle ───────────────────────────────────────────────────
+    function loadViewer(variant) {
+      const container = document.getElementById('viewer-container');
+      const overlay   = document.getElementById('loading-overlay');
+
+      document.getElementById('empty-state').classList.add('hidden');
+      overlay.classList.remove('hidden');
+
+      if (statsRaf) { cancelAnimationFrame(statsRaf); statsRaf = null; }
+      document.getElementById('stats-panel').classList.add('hidden');
+
+      // Reset layer state for this variant
+      layerEntityMap  = {};
+      layerVisibility = {};
+      variant.layers.forEach(l => { layerVisibility[l.id] = l.defaultOn; });
+
+      container.innerHTML = '';
+
+      const app = document.createElement('pc-app');
+      app.setAttribute('antialias', 'false');
+      app.setAttribute('high-resolution', 'false');
+
+      // Camera controls script
+      const camScript = document.createElement('pc-asset');
+      camScript.setAttribute('src', 'https://cdn.jsdelivr.net/npm/playcanvas/scripts/esm/camera-controls.mjs');
+      app.appendChild(camScript);
+
+      const pcScene = document.createElement('pc-scene');
+
+      // Camera entity
+      const camEntity = document.createElement('pc-entity');
+      camEntity.setAttribute('position', variant.camPos);
+      camEntity.appendChild(document.createElement('pc-camera'));
+      const scripts = document.createElement('pc-scripts');
+      const ctrlScript = document.createElement('pc-script');
+      ctrlScript.setAttribute('name', 'cameraControls');
+      scripts.appendChild(ctrlScript);
+      camEntity.appendChild(scripts);
+      pcScene.appendChild(camEntity);
+
+      // One pc-asset + pc-entity per layer
+      let pendingLoads = variant.layers.length;
+      const hide = () => { if (--pendingLoads <= 0) overlay.classList.add('hidden'); };
+      setTimeout(() => overlay.classList.add('hidden'), 8000); // fallback
+
+      variant.layers.forEach(layer => {
+        const assetEl = document.createElement('pc-asset');
+        assetEl.setAttribute('id', `asset-${layer.id}`);
+        assetEl.setAttribute('src', layer.src);
+        assetEl.addEventListener('load', hide, { once: true });
+        app.appendChild(assetEl);
+
+        const entityEl = document.createElement('pc-entity');
+        entityEl.setAttribute('position', variant.splatPos);
+        entityEl.setAttribute('rotation', variant.splatRot);
+        const splatComp = document.createElement('pc-splat');
+        splatComp.setAttribute('asset', `asset-${layer.id}`);
+        entityEl.appendChild(splatComp);
+        pcScene.appendChild(entityEl);
+
+        layerEntityMap[layer.id] = entityEl;
+      });
+
+      app.appendChild(pcScene);
+      container.appendChild(app);
+
+      buildLayerToggles(variant);
+      startStats(app, variant);
+    }
+
+    buildNav();
+  </script>
+
 </body>
 </html>
