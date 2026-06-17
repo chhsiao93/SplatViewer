@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animated Flood — Medium Level</title>
+  <script type="importmap">
+  { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@latest/build/playcanvas.mjs" } }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.6.0/dist/pwc.mjs"></script>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+    pc-app { display: block; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+
+<pc-app antialias="false" high-resolution="false">
+  <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas/scripts/esm/camera-controls.mjs"></pc-asset>
+  <pc-asset src="../gsplat-preload.mjs"></pc-asset>
+  <pc-asset id="terrain-asset" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/flood_input_bound.sog"></pc-asset>
+  <pc-scene>
+    <pc-entity id="camera" name="camera" position="-0.1 0.15 -0.15">
+      <pc-camera></pc-camera>
+      <pc-scripts>
+        <pc-script name="cameraControls"></pc-script>
+      </pc-scripts>
+    </pc-entity>
+    <pc-entity id="terrain" name="terrain" position="0 0 0" rotation="-90 0 0">
+      <pc-gsplat asset="terrain-asset"></pc-gsplat>
+    </pc-entity>
+    <pc-entity id="truck" name="truck" position="0 0 0" rotation="-90 0 0">
+      <pc-gsplat></pc-gsplat>
+      <pc-scripts>
+        <pc-script name="gsplatPreload" attributes='{
+          "fps": 10,
+          "folder": "https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/hicss_flood/med/",
+          "filenamePattern": "truck_{frame:04}.sog",
+          "startFrame": 0,
+          "endFrame": 49,
+          "groupId": "flood"
+        }'></pc-script>
+      </pc-scripts>
+    </pc-entity>
+    <pc-entity id="water" name="water" position="0 0 0" rotation="-90 0 0">
+      <pc-gsplat></pc-gsplat>
+      <pc-scripts>
+        <pc-script name="gsplatPreload" attributes='{
+          "fps": 10,
+          "folder": "https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/hicss_flood/med/",
+          "filenamePattern": "water_{frame:04}.sog",
+          "startFrame": 0,
+          "endFrame": 49,
+          "groupId": "flood"
+        }'></pc-script>
+      </pc-scripts>
+    </pc-entity>
+  </pc-scene>
+</pc-app>
+
+<!-- UI overlay -->
+<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+
+  <!-- Download progress (shown while fetching) -->
+  <div id="loading" style="position:absolute;inset:0;background:rgba(3,7,18,0.85);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+    <p id="dl-text" style="color:#9ca3af;font-size:14px;font-family:system-ui,sans-serif;margin:0">Downloading frames… 0%</p>
+    <div style="width:220px;height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden">
+      <div id="dl-bar" style="height:100%;background:#3b82f6;width:0%;transition:width .15s linear"></div>
+    </div>
+  </div>
+
+  <!-- FPS / splats / VRAM -->
+  <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.6);border-radius:6px;overflow:hidden;font-family:ui-monospace,monospace;font-size:12px;color:#4ade80;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px;border-bottom:1px solid rgba(255,255,255,0.08)"><span style="color:rgba(255,255,255,.4)">FPS</span><span id="fps">—</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px;border-bottom:1px solid rgba(255,255,255,0.08)"><span style="color:rgba(255,255,255,.4)">Splats</span><span id="splats">—</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px"><span style="color:rgba(255,255,255,.4)">VRAM</span><span id="vram">—</span></div>
+  </div>
+
+  <!-- Layer toggles -->
+  <div style="position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,0.6);border-radius:6px;padding:8px 12px;font-family:system-ui,sans-serif;font-size:13px;color:#e5e7eb;pointer-events:auto;">
+    <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Layers</div>
+    <label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer"><input type="checkbox" checked data-entity="terrain"> Terrain</label>
+    <label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer"><input type="checkbox" checked data-entity="truck"> Truck</label>
+    <label style="display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer"><input type="checkbox" checked data-entity="water"> Water</label>
+  </div>
+
+  <!-- Scrubber (hidden until download complete) -->
+  <div id="controls" style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.6);border-radius:6px;padding:6px 12px;display:none;align-items:center;gap:10px;pointer-events:auto;">
+    <button id="btn-play" style="background:none;border:1px solid rgba(255,255,255,.3);color:#e5e7eb;cursor:pointer;border-radius:4px;width:28px;height:28px;font-size:14px;line-height:1;padding:0;">&#9646;&#9646;</button>
+    <input type="range" id="scrubber" min="0" max="49" value="0" style="width:160px;cursor:pointer;accent-color:#3b82f6;">
+    <span id="frame-num" style="color:#9ca3af;font-family:ui-monospace,monospace;font-size:12px;min-width:44px;text-align:right">0 / 49</span>
+  </div>
+
+</div>
+
+<script type="module">
+  import { Vec3 } from 'playcanvas';
+  import { GsplatPreload } from '../gsplat-preload.mjs';
+
+  const pcApp  = document.querySelector('pc-app');
+  const GROUP  = 'flood';
+  const FRAMES = 49;
+
+  // ── Download progress ──────────────────────────────────────────────────────
+  const dlText = document.getElementById('dl-text');
+  const dlBar  = document.getElementById('dl-bar');
+
+  pcApp.addEventListener('flipbook-progress', ({ detail: d }) => {
+    if (d.groupId !== GROUP) return;
+    const pct = Math.round(d.loaded / d.total * 100);
+    dlText.textContent = `Downloading frames… ${pct}%`;
+    dlBar.style.width  = pct + '%';
+  });
+
+  // ── Ready → show controls ──────────────────────────────────────────────────
+  const loading  = document.getElementById('loading');
+  const controls = document.getElementById('controls');
+
+  pcApp.addEventListener('flipbook-ready', ({ detail: d }) => {
+    if (d.groupId !== GROUP) return;
+    loading.style.display  = 'none';
+    controls.style.display = 'flex';
+  });
+
+  // ── Scrubber ───────────────────────────────────────────────────────────────
+  const scrubber = document.getElementById('scrubber');
+  const frameNum = document.getElementById('frame-num');
+  const btnPlay  = document.getElementById('btn-play');
+
+  let wasPaused = false;
+  scrubber.addEventListener('pointerdown', () => {
+    wasPaused = !(GsplatPreload.groups.get(GROUP)?.playing ?? false);
+    GsplatPreload.pause(GROUP);
+  });
+  scrubber.addEventListener('input', () => {
+    GsplatPreload.seek(GROUP, +scrubber.value);
+    frameNum.textContent = `${scrubber.value} / ${FRAMES}`;
+  });
+  scrubber.addEventListener('pointerup', () => {
+    if (!wasPaused) GsplatPreload.play(GROUP);
+  });
+
+  btnPlay.addEventListener('click', () => {
+    const g = GsplatPreload.groups.get(GROUP);
+    if (g?.playing) { GsplatPreload.pause(GROUP); btnPlay.innerHTML = '&#9654;'; }
+    else            { GsplatPreload.play(GROUP);  btnPlay.innerHTML = '&#9646;&#9646;'; }
+  });
+
+  // Poll to keep scrubber + play icon in sync during playback
+  ;(function poll() {
+    const g = GsplatPreload.groups.get(GROUP);
+    if (g && !scrubber.matches(':active')) {
+      scrubber.value       = g.currentFrame;
+      frameNum.textContent = `${g.currentFrame} / ${FRAMES}`;
+      btnPlay.innerHTML    = g.playing ? '&#9646;&#9646;' : '&#9654;';
+    }
+    requestAnimationFrame(poll);
+  })();
+
+  // ── FPS / VRAM stats ───────────────────────────────────────────────────────
+  const fmtV = b => !b ? '—' : b/1048576 >= 1000 ? (b/1073741824).toFixed(1)+' GB' : (b/1048576).toFixed(0)+' MB';
+  const fmtN = n => n == null ? '—' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : ''+n;
+  let att = 0, fc = 0, t0 = performance.now();
+  const poll2 = setInterval(() => {
+    if (!pcApp.app) { if (++att > 100) clearInterval(poll2); return; }
+    clearInterval(poll2);
+    (function tick(now) {
+      fc++;
+      if (now - t0 >= 500) {
+        const s = pcApp.app.stats;
+        document.getElementById('fps').textContent    = Math.round(fc * 1000 / (now - t0));
+        document.getElementById('splats').textContent = fmtN(s.frame?.gsplats);
+        document.getElementById('vram').textContent   = fmtV(s.vram?.totalUsed);
+        fc = 0; t0 = now;
+      }
+      requestAnimationFrame(tick);
+    })(performance.now());
+  }, 100);
+
+  // ── Layer toggles ──────────────────────────────────────────────────────────
+  document.querySelectorAll('[data-entity]').forEach(cb =>
+    cb.addEventListener('change', () => {
+      const el = document.getElementById(cb.dataset.entity);
+      if (!el?.entity) return;
+      const comp = el.entity.gsplat ?? el.entity;
+      comp.enabled = cb.checked;
+    })
+  );
+
+  // ── Camera focus ──────────────────────────────────────────────────────────
+  const FOCUS = new Vec3(0.2, 0.0, 0.1);
+  (function tryFocus() {
+    const ctrl = document.getElementById('camera')?.entity?.script?.cameraControls;
+    if (ctrl) ctrl.focusPoint = FOCUS;
+    else requestAnimationFrame(tryFocus);
+  })();
+</script>
+
+</body>
+</html>
