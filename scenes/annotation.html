@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Alligator</title>
+  <script type="importmap">
+  { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.20.1/build/playcanvas.mjs" } }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.18.0/dist/pwc.mjs"></script>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+    pc-app { display: block; width: 100%; height: 100%; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<pc-app antialias="false" high-resolution="false">
+  <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.20.1/scripts/esm/camera-controls.mjs"></pc-asset>
+  <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.20.1/scripts/esm/annotations.mjs"></pc-asset>
+  <pc-asset src="../scripts/polygon-highlight.mjs"></pc-asset>
+  <pc-asset id="scene-asset" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_low_bound.sog"></pc-asset>
+  <pc-scene>
+    <pc-entity id="camera" name="camera" position="0.5 1.5 1.5">
+      <pc-camera></pc-camera>
+      <pc-script>
+        <pc-script-instance name="cameraControls"></pc-script-instance>
+      </pc-script>
+    </pc-entity>
+    <pc-entity name="scene" position="0 0 0" rotation="-90 0 0">
+      <pc-gsplat asset="scene-asset"></pc-gsplat>
+      <pc-script>
+        <pc-script-instance name="annotationManager"></pc-script-instance>
+      </pc-script>
+      <!-- Annotation 1: Flood prone -->
+      <pc-entity name="annotation1" position="0.15 0.1 0.1">
+        <pc-script>
+          <pc-script-instance name="annotation" attributes='{
+            "label": "1",
+            "title": "Floods Prone ",
+            "text": "Flood first."
+          }'></pc-script-instance>
+          <pc-script-instance name="polygonHighlight" attributes='{
+            "zOffset": 0.02,
+            "shapes": [
+              { "type": "polygon", "points": [[0.15,0.2],[0.05,0.1],[0.15,0.0],[0.25,0.1]], "color": [1,0,0], "opacity": 0.5 },
+              { "type": "polygon", "points": [[-0.75,-0.2],[-0.85,-0.3],[-0.75,-0.4],[-0.65,-0.3]], "color": [1,0,0], "opacity": 0.5 }
+            ]
+          }'></pc-script-instance>
+        </pc-script>
+      </pc-entity>
+      <!-- Annotation 2: Flood direction -->
+      <pc-entity name="annotation2" position="-0.5 0.8 0.1">
+        <pc-script>
+          <pc-script-instance name="annotation" attributes='{
+            "label": "2",
+            "title": "Water Direction",
+            "text": "Water flows observed by the interviewee."
+          }'></pc-script-instance>
+          <pc-script-instance name="polygonHighlight" attributes='{
+            "zOffset": 0.02,
+            "shapes": [
+              { "type": "arrow", "from": [-0.5,0.85], "to": [-0.3,0.5], "color": [0,0.3,1], "opacity": 0.7 },
+              { "type": "arrow", "from": [-0.95,0.0], "to": [-0.75,0.05], "color": [0,0.3,1], "opacity": 0.7 },
+              { "type": "arrow", "from": [-0.85,-0.75], "to": [-0.7,-0.65], "color": [0,0.3,1], "opacity": 0.7 },
+              { "type": "arrow", "from": [0.2,0.7], "to": [0.15,0.5], "color": [0,0.3,1], "opacity": 0.7 }
+            ]
+          }'></pc-script-instance>
+        </pc-script>
+      </pc-entity>
+      <!-- Annotation 3: Home of interviewee -->
+      <pc-entity name="annotation3" position="-0.3 0.3 0.1">
+        <pc-script>
+          <pc-script-instance name="annotation" attributes='{
+            "label": "3",
+            "title": "Home",
+            "text": "The home location of the interviewee."
+          }'></pc-script-instance>
+          <pc-script-instance name="polygonHighlight" attributes='{
+            "zOffset": 0.02,
+            "shapes": [
+              { "type": "star", "center": [-0.3, 0.3], "outerRadius": 0.08, "innerRadius": 0.03, "points": 5, "color": [1, 1, 0], "opacity": 0.7 }
+            ]
+          }'></pc-script-instance>
+        </pc-script>
+      </pc-entity>
+    </pc-entity>
+  </pc-scene>
+</pc-app>
+
+<!-- UI overlay -->
+<div style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;">
+
+  <div id="loading" style="position:absolute;inset:0;background:rgba(3,7,18,0.8);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+    <div style="width:32px;height:32px;border:2px solid #3b82f6;border-top-color:transparent;border-radius:50%;animation:spin .75s linear infinite"></div>
+    <p style="color:#9ca3af;font-size:14px;font-family:system-ui,sans-serif;margin:0">Loading scene…</p>
+  </div>
+
+  <div style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.6);border-radius:6px;overflow:hidden;font-family:ui-monospace,monospace;font-size:12px;color:#4ade80;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px;border-bottom:1px solid rgba(255,255,255,0.08)"><span style="color:rgba(255,255,255,.4)">FPS</span><span id="fps">—</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px;border-bottom:1px solid rgba(255,255,255,0.08)"><span style="color:rgba(255,255,255,.4)">Splats</span><span id="splats">—</span></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px"><span style="color:rgba(255,255,255,.4)">VRAM</span><span id="vram">—</span></div>
+  </div>
+
+</div>
+
+<script type="module">
+  const pcApp = document.querySelector('pc-app');
+
+  // Stop canvas clicks from bubbling to document so the annotationManager's
+  // document-level dismiss handler never fires on drags. Tooltip only hides
+  // when the user clicks the annotation label dot again.
+  pcApp.addEventListener('pointerdown', e => e.stopPropagation());
+
+  const loading = document.getElementById('loading');
+  document.querySelector('pc-asset[src$=".sog"]')?.addEventListener('load', () => loading.style.display = 'none', { once: true });
+  setTimeout(() => loading.style.display = 'none', 8000);
+
+  const fmtV = b => !b ? '—' : b/1048576 >= 1000 ? (b/1073741824).toFixed(1)+' GB' : (b/1048576).toFixed(0)+' MB';
+  const fmtN = n => n == null ? '—' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : ''+n;
+  let att = 0, fc = 0, t0 = performance.now();
+  const poll = setInterval(() => {
+    if (!pcApp.app) { if (++att > 100) clearInterval(poll); return; }
+    clearInterval(poll);
+    (function tick(now) {
+      fc++;
+      if (now - t0 >= 500) {
+        const s = pcApp.app.stats;
+        document.getElementById('fps').textContent    = Math.round(fc * 1000 / (now - t0));
+        document.getElementById('splats').textContent = fmtN(s.frame?.gsplats);
+        document.getElementById('vram').textContent   = fmtV(s.vram?.totalUsed);
+        fc = 0; t0 = now;
+      }
+      requestAnimationFrame(tick);
+    })(performance.now());
+  }, 100);
+</script>
+
+</body>
+</html>
