@@ -25,7 +25,7 @@
     <pc-entity id="camera" name="camera" position="0.5 1.5 1.5">
       <pc-camera></pc-camera>
       <pc-script>
-        <pc-script-instance name="cameraControls"></pc-script-instance>
+        <pc-script-instance name="cameraControls" attributes='{"moveSpeed": 1}'></pc-script-instance>
       </pc-script>
     </pc-entity>
     <pc-entity name="scene" position="0 0 0" rotation="-90 0 0">
@@ -103,6 +103,15 @@
     <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 10px"><span style="color:rgba(255,255,255,.4)">VRAM</span><span id="vram">—</span></div>
   </div>
 
+  <!-- Fly-to panel -->
+  <form id="fly-form" style="pointer-events:auto;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.6);border-radius:8px;padding:6px 10px;font-family:ui-monospace,monospace;font-size:12px;">
+    <span style="color:rgba(255,255,255,0.4);margin-right:2px;">Fly to</span>
+    <input id="fly-x" type="number" step="0.1" placeholder="X" style="width:56px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:4px;color:#fff;padding:3px 6px;font-size:12px;font-family:inherit;">
+    <input id="fly-y" type="number" step="0.1" placeholder="Y" style="width:56px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:4px;color:#fff;padding:3px 6px;font-size:12px;font-family:inherit;">
+    <input id="fly-z" type="number" step="0.1" placeholder="Z" style="width:56px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:4px;color:#fff;padding:3px 6px;font-size:12px;font-family:inherit;">
+    <button type="submit" style="background:#3b82f6;border:none;border-radius:4px;color:#fff;padding:3px 10px;font-size:12px;font-family:inherit;cursor:pointer;">Go</button>
+  </form>
+
 </div>
 
 <script type="module">
@@ -112,6 +121,31 @@
   // document-level dismiss handler never fires on drags. Tooltip only hides
   // when the user clicks the annotation label dot again.
   pcApp.addEventListener('pointerdown', e => e.stopPropagation());
+
+  // Fly-to: smoothly focuses the camera on a world-space coordinate.
+  // Also callable from the browser console as flyTo(x, y, z).
+  const flyTo = async (x, y, z) => {
+    const { Vec3 } = await import('playcanvas');
+    // Input is in scene-entity local space (same as annotation position attrs).
+    // Transform through the scene entity's world matrix to get world-space coords.
+    const sceneEntity = pcApp.app?.root.findByName('scene');
+    const localPos    = new Vec3(x, y, z);
+    const worldPos    = new Vec3();
+    sceneEntity?.getWorldTransform().transformPoint(localPos, worldPos);
+    const camera = pcApp.app?.root.findByName('camera');
+    camera?.script?.cameraControls?.focus(worldPos);
+  };
+  window.flyTo = flyTo;
+
+  document.getElementById('fly-form').addEventListener('pointerdown', e => e.stopPropagation());
+  document.getElementById('fly-form').addEventListener('submit', e => {
+    e.preventDefault();
+    flyTo(
+      parseFloat(document.getElementById('fly-x').value) || 0,
+      parseFloat(document.getElementById('fly-y').value) || 0,
+      parseFloat(document.getElementById('fly-z').value) || 0
+    );
+  });
 
   const loading = document.getElementById('loading');
   document.querySelector('pc-asset[src$=".sog"]')?.addEventListener('load', () => loading.style.display = 'none', { once: true });
