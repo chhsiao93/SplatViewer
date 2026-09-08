@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Splat Third-Person Explorer</title>
+  <script type="importmap">
+  { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/build/playcanvas.mjs" } }
+  </script>
+  <!-- Top-level await here blocks pwc.mjs from running until Ammo is fully initialized.
+       Browsers execute sibling <script type="module"> elements in DOM order, waiting for
+       each one (including any top-level await) before moving to the next. -->
+  <script type="module">
+  const loadScript = src => new Promise((res, rej) => {
+    const s = Object.assign(document.createElement('script'), { src, onload: res, onerror: rej });
+    document.head.appendChild(s);
+  });
+  try {
+    await loadScript('../modules/ammo/ammo.wasm.js');
+    window.Ammo = await window.Ammo({ locateFile: () => '../modules/ammo/ammo.wasm.wasm' });
+  } catch {
+    await loadScript('../modules/ammo/ammo.js');
+    window.Ammo = await window.Ammo();
+  }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.22.0/dist/pwc.mjs"></script>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+    pc-app { display: block; width: 100%; height: 100%; }
+    #hint {
+      position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.6); border-radius: 8px; padding: 8px 18px;
+      font-family: system-ui, sans-serif; font-size: 13px; color: #e5e7eb;
+      white-space: nowrap; pointer-events: none;
+    }
+    #loading {
+      position: absolute; inset: 0; background: rgba(3,7,18,.9);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+    }
+    #loading p { color: #9ca3af; font-size: 14px; font-family: system-ui, sans-serif; margin: 0; }
+    #stats {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(0,0,0,.6); border-radius: 6px; overflow: hidden;
+      font-family: ui-monospace, monospace; font-size: 12px; color: #4ade80;
+    }
+    #stats div {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding: 4px 10px; border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    #stats div:last-child { border-bottom: none; }
+    #stats span:first-child { color: rgba(255,255,255,.4); }
+  </style>
+</head>
+<body>
+
+<pc-app antialias="false" high-resolution="false">
+
+  <!-- Scripts -->
+  <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/scripts/esm/third-person-controller.mjs"></pc-asset>
+  <pc-asset src="../scripts/static-body.mjs"></pc-asset>
+
+  <!-- Scene assets (terrain.sog pre-rotated to Y-up via: splat-transform warm_low_bound.sog -r -90,0,0) -->
+  <pc-asset id="terrain-splat" src="../splats/third-person/terrain.sog"></pc-asset>
+  <pc-asset id="terrain-col-asset" src="../splats/third-person/terrain.collision.glb"></pc-asset>
+
+  <!-- Avatar materials -->
+  <pc-material id="mat-body" diffuse="#3b82f6"></pc-material>
+  <pc-material id="mat-head" diffuse="#93c5fd"></pc-material>
+  <pc-material id="mat-nose" diffuse="#f97316"></pc-material>
+
+  <pc-scene gravity="0 -9.81 0">
+
+    <!-- Sun -->
+    <pc-entity name="tps-sun" rotation="45 30 0">
+      <pc-light type="directional" color="#ffe4c0" intensity="1.2"
+                cast-shadows shadow-type="pcf3-32f" shadow-resolution="1024" shadow-distance="5"
+                shadow-bias="0.1" normal-offset-bias="0.05"></pc-light>
+    </pc-entity>
+    <!-- Ambient fill -->
+    <pc-entity name="tps-fill" position="0 3 0">
+      <pc-light type="omni" color="#8ab4f8" intensity="0.5" range="12"></pc-light>
+    </pc-entity>
+
+    <!-- Camera — managed by thirdPersonController; initial pos is overwritten each frame -->
+    <pc-entity id="tps-camera" name="tps-camera">
+      <pc-camera fov="60" near-clip="0.02" far-clip="50" clear-color="#87ceeb"></pc-camera>
+    </pc-entity>
+
+    <!-- Terrain: visual Gaussian splat (pre-rotated, no extra transform) -->
+    <pc-entity name="tps-terrain-visual">
+      <pc-gsplat asset="terrain-splat"></pc-gsplat>
+    </pc-entity>
+
+    <!-- Terrain: invisible collision mesh (staticBody attached via JS — pc-scripts not in @0.22.0) -->
+    <pc-model id="tps-terrain-col" name="tps-terrain-col" asset="terrain-col-asset"></pc-model>
+
+    <!-- Player: capsule physics body + avatar visuals -->
+    <pc-entity id="tps-player" name="tps-player" position="0 0.6 0">
+      <pc-collision type="capsule" radius="0.08" height="0.3"></pc-collision>
+      <pc-rigid-body type="dynamic" mass="80"
+        angular-factor="0 0 0"
+        linear-damping="0"
+        angular-damping="0"
+        friction="0.8"
+        restitution="0">
+      </pc-rigid-body>
+
+      <!-- Avatar: two boxes + a sphere represent the player character -->
+      <pc-entity id="tps-facing" name="tps-facing">
+        <pc-entity id="tps-body" name="tps-body" position="0 -0.02 0">
+          <pc-render type="box" material="mat-body"></pc-render>
+        </pc-entity>
+        <pc-entity id="tps-head" name="tps-head" position="0 0.18 0">
+          <pc-render type="sphere" material="mat-head"></pc-render>
+        </pc-entity>
+        <!-- Orange nose shows forward direction -->
+        <pc-entity id="tps-nose" name="tps-nose" position="0 0.18 -0.11">
+          <pc-render type="box" material="mat-nose"></pc-render>
+        </pc-entity>
+      </pc-entity>
+
+      <!-- thirdPersonController is created via JS (pc-scripts not available in @0.22.0) -->
+    </pc-entity>
+
+  </pc-scene>
+</pc-app>
+
+<!-- Loading overlay -->
+<div id="loading">
+  <p id="loading-text">Loading physics &amp; terrain…</p>
+</div>
+
+<!-- FPS stats (shown after ready) -->
+<div id="stats" style="display:none">
+  <div><span>FPS</span><span id="fps">—</span></div>
+  <div><span>Splats</span><span id="splats">—</span></div>
+</div>
+
+<!-- Controls hint -->
+<div id="hint">WASD move &nbsp;·&nbsp; Mouse drag look &nbsp;·&nbsp; Scroll zoom &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint</div>
+
+<script type="module">
+  const pcApp   = document.querySelector('pc-app');
+  const loading = document.getElementById('loading');
+  const stats   = document.getElementById('stats');
+
+  // Use setTimeout retries (works when document.hidden=true, unlike requestAnimationFrame)
+  const retry = fn => setTimeout(fn, 50);
+
+  // Attach staticBody to terrain — pc-model creates child render entities, check those
+  function setupTerrain() {
+    const terrain = document.getElementById('tps-terrain-col')?.entity;
+    if (!terrain || !terrain.findComponents('render').length) { retry(setupTerrain); return; }
+    if (!terrain.script) terrain.addComponent('script');
+    if (!terrain.script.staticBody) terrain.script.create('staticBody');
+  }
+  setupTerrain();
+
+  // Scale avatar parts once entities exist
+  function setupAvatar() {
+    const body = document.getElementById('tps-body')?.entity;
+    const head = document.getElementById('tps-head')?.entity;
+    const nose = document.getElementById('tps-nose')?.entity;
+    if (!body || !head || !nose) { retry(setupAvatar); return; }
+    body.setLocalScale(0.12, 0.25, 0.12);
+    head.setLocalScale(0.10, 0.10, 0.10);
+    nose.setLocalScale(0.035, 0.035, 0.055);
+  }
+  setupAvatar();
+
+  // Create thirdPersonController and wire it up.
+  // (ESM scripts in PlayCanvas 2.x don't support { attributes } arg in create())
+  // TPC's create() throws "Camera entity is required" because camera can't be set
+  // before create() returns. The controller still registers despite the throw, so on
+  // the next retry we find it, set all properties, and call initialize() successfully.
+  function setupController() {
+    const player = document.getElementById('tps-player')?.entity;
+    const camera = document.getElementById('tps-camera')?.entity;
+    const facing = document.getElementById('tps-facing')?.entity;
+    if (!player || !camera || !facing) { retry(setupController); return; }
+    if (!player.script) player.addComponent('script');
+
+    let ctrl = player.script.thirdPersonController;
+    if (!ctrl) {
+      try { ctrl = player.script.create('thirdPersonController'); } catch(_) {}
+      if (!ctrl) { retry(setupController); return; }
+    }
+
+    ctrl.camera            = camera;
+    ctrl.characterModel    = facing;
+    ctrl.speedGround       = 1.5;
+    ctrl.speedAir          = 0.5;
+    ctrl.sprintMult        = 3;
+    ctrl.jumpForce         = 120;
+    ctrl.cameraDistance    = 2;
+    ctrl.cameraDistanceMin = 0.5;
+    ctrl.cameraDistanceMax = 6;
+    ctrl.cameraHeight      = 0.5;
+    ctrl.initialPitch      = 30;
+    ctrl.pitchMin          = -30;
+    ctrl.pitchMax          = 70;
+    try { ctrl.initialize(); } catch(_) {}
+
+    if (!ctrl._ready) retry(setupController);
+  }
+  setupController();
+
+  // Dismiss loading once physics + controller are ready
+  let att = 0;
+  const waitForApp = setInterval(() => {
+    const app = pcApp.app;
+    if (!app) { if (++att > 200) clearInterval(waitForApp); return; }
+    clearInterval(waitForApp);
+
+    const waitPhysics = setInterval(() => {
+      const player = document.getElementById('tps-player')?.entity;
+      if (!player?.rigidbody) return;
+      if (!player?.script?.thirdPersonController) return;
+      clearInterval(waitPhysics);
+      loading.style.display = 'none';
+      stats.style.display   = 'block';
+    }, 200);
+
+    // FPS + splats display
+    let fc = 0, t0 = performance.now();
+    const fpsEl    = document.getElementById('fps');
+    const splatsEl = document.getElementById('splats');
+    const fmtN = n => n == null ? '—' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : ''+n;
+    (function tick(now) {
+      fc++;
+      if (now - t0 >= 500) {
+        fpsEl.textContent    = Math.round(fc * 1000 / (now - t0));
+        splatsEl.textContent = fmtN(app.stats?.frame?.gsplats);
+        fc = 0; t0 = now;
+      }
+      requestAnimationFrame(tick);
+    })(performance.now());
+  }, 100);
+</script>
+
+</body>
+</html>
