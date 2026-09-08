@@ -7,9 +7,6 @@
   <script type="importmap">
   { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/build/playcanvas.mjs" } }
   </script>
-  <!-- Top-level await here blocks pwc.mjs from running until Ammo is fully initialized.
-       Browsers execute sibling <script type="module"> elements in DOM order, waiting for
-       each one (including any top-level await) before moving to the next. -->
   <script type="module">
   const loadScript = src => new Promise((res, rej) => {
     const s = Object.assign(document.createElement('script'), { src, onload: res, onerror: rej });
@@ -55,129 +52,263 @@
 
 <pc-app antialias="false" high-resolution="false">
 
-  <!-- Scripts -->
   <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/scripts/esm/third-person-controller.mjs"></pc-asset>
   <pc-asset src="../scripts/static-body.mjs"></pc-asset>
 
-  <!-- Scene assets (terrain.sog pre-rotated to Y-up via: splat-transform warm_low_bound.sog -r -90,0,0) -->
-  <pc-asset id="terrain-splat" src="../splats/third-person/terrain.sog"></pc-asset>
-  <pc-asset id="terrain-col-asset" src="../splats/third-person/terrain.collision.glb"></pc-asset>
+  <!-- Terrain visual: Z-up SOG from HF dataset (entity rotation converts to Y-up) -->
+  <pc-asset id="terrain-splat" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_low_bound.sog"></pc-asset>
+  <!-- Collision GLB: Y-up, baked with -r -90,0,0 during generation -->
+  <pc-asset id="terrain-col-asset" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/third-person/terrain.collision.glb"></pc-asset>
 
-  <!-- Avatar materials -->
   <pc-material id="mat-body" diffuse="#3b82f6"></pc-material>
   <pc-material id="mat-head" diffuse="#93c5fd"></pc-material>
   <pc-material id="mat-nose" diffuse="#f97316"></pc-material>
 
   <pc-scene gravity="0 -9.81 0">
 
-    <!-- Sun -->
     <pc-entity name="tps-sun" rotation="45 30 0">
       <pc-light type="directional" color="#ffe4c0" intensity="1.2"
                 cast-shadows shadow-type="pcf3-32f" shadow-resolution="1024" shadow-distance="5"
                 shadow-bias="0.1" normal-offset-bias="0.05"></pc-light>
     </pc-entity>
-    <!-- Ambient fill -->
     <pc-entity name="tps-fill" position="0 3 0">
       <pc-light type="omni" color="#8ab4f8" intensity="0.5" range="12"></pc-light>
     </pc-entity>
 
-    <!-- Camera — managed by thirdPersonController; initial pos is overwritten each frame -->
-    <pc-entity id="tps-camera" name="tps-camera">
+    <pc-entity id="tps-camera" name="tps-camera" position="0 3 5">
       <pc-camera fov="60" near-clip="0.02" far-clip="50" clear-color="#87ceeb"></pc-camera>
     </pc-entity>
 
-    <!-- Terrain: visual Gaussian splat (pre-rotated, no extra transform) -->
-    <pc-entity name="tps-terrain-visual">
-      <pc-gsplat asset="terrain-splat"></pc-gsplat>
+    <!-- Visual only: Z-up SOG converted to Y-up via entity rotation -->
+    <pc-entity name="tps-terrain-root" rotation="-90 0 0">
+      <pc-entity name="tps-terrain-visual">
+        <pc-gsplat asset="terrain-splat"></pc-gsplat>
+      </pc-entity>
     </pc-entity>
 
-    <!-- Terrain: invisible collision mesh (staticBody attached via JS — pc-scripts not in @0.22.0) -->
+    <!--
+      Collision model at root level — NO entity rotation.
+      terrain.collision.glb must be Y-up (baked with -r -90,0,0 during generation).
+      staticBody script attaches Ammo mesh collision to its render children.
+    -->
     <pc-model id="tps-terrain-col" name="tps-terrain-col" asset="terrain-col-asset"></pc-model>
 
-    <!-- Player: capsule physics body + avatar visuals -->
-    <pc-entity id="tps-player" name="tps-player" position="0 0.6 0">
-      <pc-collision type="capsule" radius="0.08" height="0.3"></pc-collision>
-      <pc-rigid-body type="dynamic" mass="80"
-        angular-factor="0 0 0"
-        linear-damping="0"
-        angular-damping="0"
-        friction="0.8"
-        restitution="0">
-      </pc-rigid-body>
 
-      <!-- Avatar: two boxes + a sphere represent the player character -->
+    <!--
+      Player: NO pc-collision / pc-rigid-body tags — added via JS to avoid
+      the "already has component" duplicate that WC tags cause.
+      Spawn high so the player falls onto the terrain regardless of surface height.
+    -->
+    <pc-entity id="tps-player" name="tps-player" position="0 0.4 0">
       <pc-entity id="tps-facing" name="tps-facing">
-        <pc-entity id="tps-body" name="tps-body" position="0 -0.02 0">
+        <pc-entity id="tps-body" name="tps-body" position="0 -0.01 0">
           <pc-render type="box" material="mat-body"></pc-render>
         </pc-entity>
-        <pc-entity id="tps-head" name="tps-head" position="0 0.18 0">
+        <pc-entity id="tps-head" name="tps-head" position="0 0.008 0">
           <pc-render type="sphere" material="mat-head"></pc-render>
         </pc-entity>
-        <!-- Orange nose shows forward direction -->
-        <pc-entity id="tps-nose" name="tps-nose" position="0 0.18 -0.11">
+        <!-- Nose at +Z: TPC orients characterModel so +Z faces movement direction -->
+        <pc-entity id="tps-nose" name="tps-nose" position="0 0.008 0.006">
           <pc-render type="box" material="mat-nose"></pc-render>
         </pc-entity>
       </pc-entity>
-
-      <!-- thirdPersonController is created via JS (pc-scripts not available in @0.22.0) -->
     </pc-entity>
 
   </pc-scene>
 </pc-app>
 
-<!-- Loading overlay -->
 <div id="loading">
   <p id="loading-text">Loading physics &amp; terrain…</p>
 </div>
-
-<!-- FPS stats (shown after ready) -->
 <div id="stats" style="display:none">
   <div><span>FPS</span><span id="fps">—</span></div>
   <div><span>Splats</span><span id="splats">—</span></div>
+  <div><span>Y</span><span id="player-y">—</span></div>
 </div>
-
-<!-- Controls hint -->
-<div id="hint">WASD move &nbsp;·&nbsp; Mouse drag look &nbsp;·&nbsp; Scroll zoom &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint</div>
+<div id="hint">WASD move &nbsp;·&nbsp; Mouse drag look &nbsp;·&nbsp; Scroll zoom &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint &nbsp;·&nbsp; H toggle grid</div>
 
 <script type="module">
+  import { Vec3, Color } from 'playcanvas';
+
   const pcApp   = document.querySelector('pc-app');
   const loading = document.getElementById('loading');
   const stats   = document.getElementById('stats');
+  const retry   = fn => setTimeout(fn, 50);
 
-  // Use setTimeout retries (works when document.hidden=true, unlike requestAnimationFrame)
-  const retry = fn => setTimeout(fn, 50);
+  // Add player physics via JS only (avoids duplicate-component warning from WC tags).
+  // Must wait for dynamicsWorld — the Ammo world is created lazily by PlayCanvas
+  // when the first pc-scene with gravity is processed, not on page load.
+  function addPlayerPhysics() {
+    const app = pcApp.app;
+    if (!app?.systems?.rigidbody?.dynamicsWorld) { retry(addPlayerPhysics); return; }
+    const player = document.getElementById('tps-player')?.entity;
+    if (!player) { retry(addPlayerPhysics); return; }
+    if (player.rigidbody) return;
+    player.addComponent('collision', { type: 'capsule', radius: 0.006, height: 0.02 });
+    player.addComponent('rigidbody', {
+      type: 'dynamic', mass: 80,
+      linearDamping: 0, angularDamping: 0,
+      friction: 0.8, restitution: 0,
+    });
+    player.rigidbody.angularFactor = new Vec3(0, 0, 0);
 
-  // Attach staticBody to terrain — pc-model creates child render entities, check those
-  function setupTerrain() {
-    const terrain = document.getElementById('tps-terrain-col')?.entity;
-    if (!terrain || !terrain.findComponents('render').length) { retry(setupTerrain); return; }
-    if (!terrain.script) terrain.addComponent('script');
-    if (!terrain.script.staticBody) terrain.script.create('staticBody');
+    // Enable CCD so fast falls don't tunnel through thin meshes
+    const body = player.rigidbody.body;
+    if (body) {
+      body.setCcdMotionThreshold(0.01);
+      body.setCcdSweptSphereRadius(0.006); // match capsule radius
+    }
   }
-  setupTerrain();
+  addPlayerPhysics();
 
-  // Scale avatar parts once entities exist
+  // Heightfield collision:
+  //   1. attach mesh collision temporarily so Ammo has something to raycast against
+  //   2. fire a grid of rays to sample terrain heights into a Float32Array
+  //   3. tear down mesh bodies, hide mesh
+  //   4. install btHeightfieldTerrainShape — flat 2-D array, no OOM
+  let _hfReady = false;
+  let _hfBody  = null; // keep Ammo objects alive (not GC'd until explicitly destroyed)
+
+  async function setupHeightfield() {
+    const app = pcApp.app;
+    if (!app?.systems?.rigidbody?.dynamicsWorld) { retry(setupHeightfield); return; }
+    const terrain = document.getElementById('tps-terrain-col')?.entity;
+    if (!terrain || !terrain.findComponents('render').length) { retry(setupHeightfield); return; }
+
+    const loadText = document.getElementById('loading-text');
+    const dw = app.systems.rigidbody.dynamicsWorld;
+
+    // 1. Attach mesh collision for raycasting
+    if (loadText) loadText.textContent = 'Building collision mesh…';
+    if (!terrain.script) terrain.addComponent('script');
+    terrain.script.create('staticBody');
+    await new Promise(r => setTimeout(r, 300)); // let Ammo register the body
+
+    // 2. Ray-cast grid
+    if (loadText) loadText.textContent = 'Sampling terrain heights…';
+    const xMin = -1.28, xMax = 1.28, zMin = -1.28, zMax = 1.28;
+    const step  = 0.1;
+    const nCols = Math.round((xMax - xMin) / step) + 1;
+    const nRows = Math.round((zMax - zMin) / step) + 1;
+    const fallback = -0.4;
+    const heights  = new Float32Array(nCols * nRows);
+    let minH = Infinity, maxH = -Infinity;
+
+    const rfrom = new Ammo.btVector3(0, 1.0, 0);
+    const rto   = new Ammo.btVector3(0, -1.0, 0);
+    for (let zi = 0; zi < nRows; zi++) {
+      const z = zMin + zi * step;
+      for (let xi = 0; xi < nCols; xi++) {
+        const x = xMin + xi * step;
+        rfrom.setValue(x, 1.0, z);
+        rto.setValue(x, -1.0, z);
+        const cb = new Ammo.ClosestRayResultCallback(rfrom, rto);
+        dw.rayTest(rfrom, rto, cb);
+        let h = fallback;
+        if (cb.hasHit()) {
+          h = cb.get_m_hitPointWorld().y();
+          if (h < minH) minH = h;
+          if (h > maxH) maxH = h;
+        }
+        heights[zi * nCols + xi] = h;
+        Ammo.destroy(cb);
+      }
+    }
+    Ammo.destroy(rfrom);
+    Ammo.destroy(rto);
+    if (!isFinite(minH)) { minH = fallback; maxH = 0.5; }
+
+    // 3. Remove mesh collision bodies and hide mesh
+    terrain.findComponents('render').forEach(r => {
+      const e = r.entity;
+      if (e.rigidbody) { dw.removeRigidBody(e.rigidbody.body); e.removeComponent('rigidbody'); }
+      if (e.collision)  e.removeComponent('collision');
+      r.meshInstances?.forEach(mi => { mi.visible = false; });
+      r.enabled = false;
+    });
+
+    // 4. Build Ammo heightfield shape
+    if (loadText) loadText.textContent = 'Installing heightfield…';
+    const nPts = nCols * nRows;
+    const ptr  = Ammo._malloc(nPts * 4);
+    new Float32Array(Ammo.HEAPF32.buffer, ptr, nPts).set(heights);
+
+    const shape = new Ammo.btHeightfieldTerrainShape(
+      nCols, nRows, ptr,
+      1.0, minH - 0.05, maxH + 0.05,
+      1, 'PHY_FLOAT', false
+    );
+    const cellX = (xMax - xMin) / (nCols - 1);
+    const cellZ = (zMax - zMin) / (nRows - 1);
+    shape.setLocalScaling(new Ammo.btVector3(cellX, 1.0, cellZ));
+
+    const tr = new Ammo.btTransform();
+    tr.setIdentity();
+    tr.getOrigin().setValue((xMin + xMax) / 2, (minH + maxH) / 2, (zMin + zMax) / 2);
+
+    const ms = new Ammo.btDefaultMotionState(tr);
+    const ci = new Ammo.btRigidBodyConstructionInfo(0, ms, shape, new Ammo.btVector3(0, 0, 0));
+    const body = new Ammo.btRigidBody(ci);
+    body.setFriction(0.8);
+    dw.addRigidBody(body);
+    _hfBody  = { body, shape, ms, ptr }; // keep references alive
+    _hfReady = true;
+    Ammo.destroy(ci);
+    Ammo.destroy(tr);
+
+    console.log(`[TPS] Heightfield ${nCols}×${nRows} step=${step}m Y∈[${minH.toFixed(3)},${maxH.toFixed(3)}]`);
+
+    // Wireframe overlay — press H to toggle
+    const vizCol = new Color(1, 0.8, 0.2, 1);
+    const sub = 1; // draw every n-th grid line
+    const va = new Vec3(), vb = new Vec3();
+    let vizOn = true;
+    window.addEventListener('keydown', e => { if (e.key === 'h' || e.key === 'H') vizOn = !vizOn; });
+    app.on('update', () => {
+      if (!vizOn || !app.drawLine) return;
+      for (let zi = 0; zi < nRows; zi += sub) {
+        for (let xi = 0; xi < nCols - 1; xi++) {
+          va.set(xMin + xi * step,       heights[zi * nCols + xi],       zMin + zi * step);
+          vb.set(xMin + (xi + 1) * step, heights[zi * nCols + xi + 1],   zMin + zi * step);
+          app.drawLine(va, vb, vizCol);
+        }
+      }
+      for (let xi = 0; xi < nCols; xi += sub) {
+        for (let zi = 0; zi < nRows - 1; zi++) {
+          va.set(xMin + xi * step, heights[zi * nCols + xi],       zMin + zi * step);
+          vb.set(xMin + xi * step, heights[(zi + 1) * nCols + xi], zMin + (zi + 1) * step);
+          app.drawLine(va, vb, vizCol);
+        }
+      }
+    });
+  }
+  setupHeightfield();
+
+  // Scale avatar parts
   function setupAvatar() {
     const body = document.getElementById('tps-body')?.entity;
     const head = document.getElementById('tps-head')?.entity;
     const nose = document.getElementById('tps-nose')?.entity;
     if (!body || !head || !nose) { retry(setupAvatar); return; }
-    body.setLocalScale(0.12, 0.25, 0.12);
-    head.setLocalScale(0.10, 0.10, 0.10);
-    nose.setLocalScale(0.035, 0.035, 0.055);
+    const avatarScale = 0.5; // adjust to taste
+    body.setLocalScale(0.018 * avatarScale, 0.036 * avatarScale, 0.018 * avatarScale);
+    head.setLocalScale(0.015 * avatarScale, 0.015 * avatarScale, 0.015 * avatarScale);
+    nose.setLocalScale(0.006 * avatarScale, 0.006 * avatarScale, 0.009 * avatarScale);
   }
   setupAvatar();
 
-  // Create thirdPersonController and wire it up.
-  // (ESM scripts in PlayCanvas 2.x don't support { attributes } arg in create())
-  // TPC's create() throws "Camera entity is required" because camera can't be set
-  // before create() returns. The controller still registers despite the throw, so on
-  // the next retry we find it, set all properties, and call initialize() successfully.
+  // Wire up TPC.
+  // initialize() calls requestPointerLock() internally; that requires a focused
+  // document and a user gesture — it will be granted on first canvas click.
+  // Guard with _ctrlInitialized so we never call initialize() more than once;
+  // the old retry-on-!_ready loop caused repeated requestPointerLock() failures.
+  let _ctrlInitialized = false;
   function setupController() {
     const player = document.getElementById('tps-player')?.entity;
     const camera = document.getElementById('tps-camera')?.entity;
     const facing = document.getElementById('tps-facing')?.entity;
     if (!player || !camera || !facing) { retry(setupController); return; }
+    if (!player.rigidbody)            { retry(setupController); return; }
     if (!player.script) player.addComponent('script');
 
     let ctrl = player.script.thirdPersonController;
@@ -188,24 +319,27 @@
 
     ctrl.camera            = camera;
     ctrl.characterModel    = facing;
-    ctrl.speedGround       = 1.5;
-    ctrl.speedAir          = 0.5;
-    ctrl.sprintMult        = 3;
-    ctrl.jumpForce         = 120;
-    ctrl.cameraDistance    = 2;
-    ctrl.cameraDistanceMin = 0.5;
-    ctrl.cameraDistanceMax = 6;
-    ctrl.cameraHeight      = 0.5;
+    ctrl.speedGround       = 10;
+    ctrl.speedAir          = 4;
+    ctrl.sprintMult        = 2;
+    ctrl.jumpForce         = 30;
+    ctrl.cameraDistance    = 0.3;
+    ctrl.cameraDistanceMin = 0.05;
+    ctrl.cameraDistanceMax = 1.5;
+    ctrl.cameraHeight      = 0.06;
+    ctrl.maxSlope          = 45;
     ctrl.initialPitch      = 30;
     ctrl.pitchMin          = -30;
     ctrl.pitchMax          = 70;
-    try { ctrl.initialize(); } catch(_) {}
 
-    if (!ctrl._ready) retry(setupController);
+    if (!_ctrlInitialized) {
+      try { ctrl.initialize(); } catch(_) {}
+      _ctrlInitialized = true;
+    }
   }
   setupController();
 
-  // Dismiss loading once physics + controller are ready
+  // Loading overlay + stats
   let att = 0;
   const waitForApp = setInterval(() => {
     const app = pcApp.app;
@@ -216,21 +350,24 @@
       const player = document.getElementById('tps-player')?.entity;
       if (!player?.rigidbody) return;
       if (!player?.script?.thirdPersonController) return;
+      if (!_hfReady) return;
       clearInterval(waitPhysics);
       loading.style.display = 'none';
       stats.style.display   = 'block';
     }, 200);
 
-    // FPS + splats display
     let fc = 0, t0 = performance.now();
     const fpsEl    = document.getElementById('fps');
     const splatsEl = document.getElementById('splats');
+    const playerYEl = document.getElementById('player-y');
     const fmtN = n => n == null ? '—' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : ''+n;
     (function tick(now) {
       fc++;
       if (now - t0 >= 500) {
         fpsEl.textContent    = Math.round(fc * 1000 / (now - t0));
         splatsEl.textContent = fmtN(app.stats?.frame?.gsplats);
+        const p = document.getElementById('tps-player')?.entity?.getPosition();
+        if (p) playerYEl.textContent = p.y.toFixed(3);
         fc = 0; t0 = now;
       }
       requestAnimationFrame(tick);

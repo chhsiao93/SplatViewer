@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TPS Physics Test</title>
+  <script type="importmap">
+  { "imports": { "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/build/playcanvas.mjs" } }
+  </script>
+
+  <!--
+    Ammo must be fully initialized before pwc.mjs runs.
+    These two module scripts execute in DOM order; the top-level await
+    in the first one blocks the second from starting.
+  -->
+  <script type="module">
+  const loadScript = src => new Promise((res, rej) => {
+    const s = Object.assign(document.createElement('script'), { src, onload: res, onerror: rej });
+    document.head.appendChild(s);
+  });
+  try {
+    await loadScript('../modules/ammo/ammo.wasm.js');
+    window.Ammo = await window.Ammo({ locateFile: () => '../modules/ammo/ammo.wasm.wasm' });
+  } catch {
+    await loadScript('../modules/ammo/ammo.js');
+    window.Ammo = await window.Ammo();
+  }
+  </script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@playcanvas/web-components@0.22.0/dist/pwc.mjs"></script>
+
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; }
+    pc-app { display: block; width: 100%; height: 100%; }
+    #log {
+      position: absolute; top: 8px; left: 8px;
+      font: 12px/1.5 ui-monospace, monospace; color: #4ade80;
+      background: rgba(0,0,0,.7); padding: 8px 12px; border-radius: 6px;
+      pointer-events: none; max-width: 340px;
+    }
+    #log div { color: rgba(255,255,255,.4); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+    #hint {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      font: 13px system-ui; color: #e5e7eb; background: rgba(0,0,0,.6);
+      padding: 6px 16px; border-radius: 8px; white-space: nowrap; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<pc-app antialias="true" high-resolution="false">
+
+  <!-- TPC script only — no terrain assets, no staticBody -->
+  <pc-asset id="tpc-asset" src="https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/scripts/esm/third-person-controller.mjs"></pc-asset>
+
+  <!-- Materials for avatar parts -->
+  <pc-material id="mat-body" diffuse="#3b82f6"></pc-material>
+  <pc-material id="mat-head" diffuse="#93c5fd"></pc-material>
+  <pc-material id="mat-nose" diffuse="#f97316"></pc-material>
+  <pc-material id="mat-floor" diffuse="#374151"></pc-material>
+
+  <pc-scene gravity="0 -9.81 0">
+
+    <!-- Lighting -->
+    <pc-entity name="sun" rotation="45 30 0">
+      <pc-light type="directional" color="#ffe4c0" intensity="1.5"></pc-light>
+    </pc-entity>
+    <pc-entity name="ambient" position="0 5 0">
+      <pc-light type="omni" color="#8ab4f8" intensity="0.4" range="20"></pc-light>
+    </pc-entity>
+
+    <!-- Camera — driven by thirdPersonController; initial pos gives a view while TPC loads -->
+    <pc-entity id="test-camera" name="test-camera" position="0 4 8">
+      <pc-camera fov="60" near-clip="0.05" far-clip="100" clear-color="#87ceeb"></pc-camera>
+    </pc-entity>
+
+    <!--
+      Static floor — collision box 10×0.2×10 centred at Y=0 (top surface at Y=0.1).
+      Visual is a separate child entity scaled to match, so collision half-extents
+      don't get confused by entity scale.
+    -->
+    <pc-entity name="floor" position="0 0 0">
+      <pc-collision type="box" half-extents="5 0.1 5"></pc-collision>
+      <pc-rigid-body type="static"></pc-rigid-body>
+      <pc-entity name="floor-visual" scale="10 0.2 10">
+        <pc-render type="box" material="mat-floor"></pc-render>
+      </pc-entity>
+    </pc-entity>
+
+    <!--
+      Player entity.
+      Capsule: radius=0.3, height=0.8 → total height 1.4, centre at 0.7 above bottom.
+      Spawn at Y=2 so it falls onto the floor (top surface at Y=0.1).
+      Settled position: Y = 0.1 + 0.7 = 0.8
+      NOTE: collision and rigidbody are added ONLY via JS to avoid the
+      "already has component" duplicate warning from web-component + JS race.
+    -->
+    <pc-entity id="test-player" name="test-player" position="0 2 0">
+
+      <!-- Avatar visuals only — no pc-collision / pc-rigid-body tags here -->
+      <pc-entity id="test-facing" name="test-facing">
+        <pc-entity id="test-body" name="test-body" position="0 0 0">
+          <pc-render type="box" material="mat-body"></pc-render>
+        </pc-entity>
+        <pc-entity id="test-head" name="test-head" position="0 0.6 0">
+          <pc-render type="sphere" material="mat-head"></pc-render>
+        </pc-entity>
+        <!--
+          Nose at local +Z: TPC rotates characterModel so its +Z faces movement direction.
+          (PlayCanvas forward is -Z, but the TPC yaw formula uses +Z as "front".)
+        -->
+        <pc-entity id="test-nose" name="test-nose" position="0 0.6 0.4">
+          <pc-render type="box" material="mat-nose"></pc-render>
+        </pc-entity>
+      </pc-entity>
+
+    </pc-entity>
+
+  </pc-scene>
+</pc-app>
+
+<!-- Debug readout -->
+<div id="log">
+  <div>Debug</div>
+  <span id="dbg-pos">pos  —</span><br>
+  <span id="dbg-vel">vel  —</span><br>
+  <span id="dbg-grnd">grounded  —</span><br>
+  <span id="dbg-lock">pointer lock  —</span><br>
+  <span id="dbg-status">status  —</span>
+</div>
+<div id="hint">Click canvas to capture mouse &nbsp;·&nbsp; WASD move &nbsp;·&nbsp; Mouse look &nbsp;·&nbsp; Space jump &nbsp;·&nbsp; Shift sprint</div>
+
+<script type="module">
+  import { Vec3 } from 'playcanvas';
+
+  const retry = fn => setTimeout(fn, 50);
+
+  // Step 1 — add collision + rigidbody via JS (not WC tags) to avoid duplicate warnings
+  function addPhysics() {
+    const player = document.getElementById('test-player')?.entity;
+    if (!player) { retry(addPhysics); return; }
+    if (player.rigidbody) return; // already added
+
+    player.addComponent('collision', { type: 'capsule', radius: 0.3, height: 0.8 });
+    player.addComponent('rigidbody', {
+      type: 'dynamic', mass: 80,
+      linearDamping: 0, angularDamping: 0,
+      friction: 0.8, restitution: 0,
+    });
+    // Prevent rotation from physics (lock to upright)
+    player.rigidbody.angularFactor = new Vec3(0, 0, 0);
+
+    dbg('status', 'physics added');
+  }
+  addPhysics();
+
+  // Step 2 — scale avatar parts
+  function scaleAvatar() {
+    const body = document.getElementById('test-body')?.entity;
+    const head = document.getElementById('test-head')?.entity;
+    const nose = document.getElementById('test-nose')?.entity;
+    if (!body || !head || !nose) { retry(scaleAvatar); return; }
+    body.setLocalScale(0.5, 0.9, 0.5);
+    head.setLocalScale(0.45, 0.45, 0.45);
+    nose.setLocalScale(0.12, 0.12, 0.25);
+  }
+  scaleAvatar();
+
+  // Step 3 — create TPC
+  // TPC.create() throws "Camera entity is required" but still registers
+  // the script in player.script. On retry we find the registered controller,
+  // set all properties, and call initialize().
+  function setupController() {
+    const player  = document.getElementById('test-player')?.entity;
+    const camera  = document.getElementById('test-camera')?.entity;
+    const facing  = document.getElementById('test-facing')?.entity;
+    if (!player || !camera || !facing)  { retry(setupController); return; }
+    if (!player.rigidbody)              { retry(setupController); return; }
+    if (!player.script) player.addComponent('script');
+
+    let ctrl = player.script.thirdPersonController;
+    if (!ctrl) {
+      try { ctrl = player.script.create('thirdPersonController'); } catch(_) {}
+      if (!ctrl) { retry(setupController); return; }
+    }
+
+    ctrl.camera            = camera;
+    ctrl.characterModel    = facing;
+    ctrl.speedGround       = 30;
+    ctrl.speedAir          = 10;
+    ctrl.sprintMult        = 2;
+    ctrl.jumpForce         = 600;
+    ctrl.cameraDistance    = 5;
+    ctrl.cameraDistanceMin = 1;
+    ctrl.cameraDistanceMax = 12;
+    ctrl.cameraHeight      = 1.5;
+    ctrl.initialPitch      = 20;
+    ctrl.pitchMin          = -30;
+    ctrl.pitchMax          = 70;
+    try { ctrl.initialize(); } catch(_) {}
+
+    if (!ctrl._ready) { retry(setupController); return; }
+    dbg('status', 'controller ready');
+  }
+  setupController();
+
+  // Debug readout
+  function dbg(id, val) {
+    const el = document.getElementById('dbg-' + id);
+    if (el) el.textContent = id + '  ' + val;
+  }
+
+  let fc = 0, t0 = performance.now();
+  (function tick(now) {
+    fc++;
+    if (now - t0 >= 200) {
+      const player = document.getElementById('test-player')?.entity;
+      if (player) {
+        const p = player.getPosition();
+        const v = player.rigidbody?.linearVelocity;
+        const ctrl = player.script?.thirdPersonController;
+        dbg('pos',  `${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)}`);
+        if (v) dbg('vel', `${v.x.toFixed(2)}, ${v.y.toFixed(2)}, ${v.z.toFixed(2)}`);
+        dbg('grnd', ctrl?._grounded ?? '—');
+        dbg('lock', !!document.pointerLockElement);
+      }
+      fc = 0; t0 = now;
+    }
+    requestAnimationFrame(tick);
+  })(performance.now());
+</script>
+
+</body>
+</html>
