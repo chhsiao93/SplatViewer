@@ -187,7 +187,7 @@
     // 2. Ray-cast grid
     if (loadText) loadText.textContent = 'Sampling terrain heights…';
     const xMin = -1.28, xMax = 1.28, zMin = -1.28, zMax = 1.28;
-    const step  = 0.1;
+    const step  = 0.01;
     const nCols = Math.round((xMax - xMin) / step) + 1;
     const nRows = Math.round((zMax - zMin) / step) + 1;
     const fallback = -0.4;
