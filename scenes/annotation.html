@@ -20,7 +20,7 @@
   <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.20.1/scripts/esm/camera-controls.mjs"></pc-asset>
   <pc-asset src="https://cdn.jsdelivr.net/npm/playcanvas@2.20.1/scripts/esm/annotations.mjs"></pc-asset>
   <pc-asset src="../scripts/polygon-highlight.mjs"></pc-asset>
-  <pc-asset id="scene-asset" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/warm_low_bound.sog"></pc-asset>
+  <pc-asset id="scene-asset" src="https://huggingface.co/datasets/chhsiao93/hicss-splat/resolve/main/splats/alligator.sog"></pc-asset>
   <pc-scene>
     <pc-entity id="camera" name="camera" position="0.5 1.5 1.5">
       <pc-camera></pc-camera>
@@ -44,8 +44,8 @@
           <pc-script-instance name="polygonHighlight" attributes='{
             "zOffset": 0.02,
             "shapes": [
-              { "type": "polygon", "points": [[0.15,0.2],[0.05,0.1],[0.15,0.0],[0.25,0.1]], "color": [1,0,0], "opacity": 0.5 },
-              { "type": "polygon", "points": [[-0.75,-0.2],[-0.85,-0.3],[-0.75,-0.4],[-0.65,-0.3]], "color": [1,0,0], "opacity": 0.5 }
+              { "type": "polygon", "points": [[0.187, 0.262], [0.058, 0.187], [0.133, 0.058], [0.262, 0.133]], "cornerRadius": 0.025, "lineWidth": 0.012, "color": [1, 0.984, 0], "opacity": 0.9, "fillOpacity": 0.0 },
+              { "type": "polygon", "points": [[-0.764, -0.184], [-0.886, -0.254], [-0.816, -0.376], [-0.694, -0.306]], "cornerRadius": 0.025, "lineWidth": 0.012, "color": [1, 0.984, 0], "opacity": 0.9, "fillOpacity": 0.0 }
             ]
           }'></pc-script-instance>
         </pc-script>
@@ -61,26 +61,43 @@
           <pc-script-instance name="polygonHighlight" attributes='{
             "zOffset": 0.02,
             "shapes": [
-              { "type": "arrow", "from": [-0.5,0.85], "to": [-0.3,0.5], "color": [0,0.3,1], "opacity": 0.7 },
-              { "type": "arrow", "from": [-0.95,0.0], "to": [-0.75,0.05], "color": [0,0.3,1], "opacity": 0.7 },
-              { "type": "arrow", "from": [-0.85,-0.75], "to": [-0.7,-0.65], "color": [0,0.3,1], "opacity": 0.7 },
-              { "type": "arrow", "from": [0.2,0.7], "to": [0.15,0.5], "color": [0,0.3,1], "opacity": 0.7 }
+              { "type": "arrow", "from": [-0.65,0.75], "to": [-0.45,0.5],"headRatio": 0.3, "headWidth": 0.08, "shaftWidth": 0.04, "color": [0.616, 0.941, 0.949], "opacity": 0.9 },
+              { "type": "arrow", "from": [-1.0,0.25], "to": [-0.85,0.1], "headRatio": 0.3, "headWidth": 0.08, "shaftWidth": 0.04, "color": [0.616, 0.941, 0.949], "opacity": 0.9 },
+              { "type": "arrow", "from": [-0.4,-0.6], "to": [-0.4,-0.4], "headRatio": 0.3, "headWidth": 0.08, "shaftWidth": 0.04, "color": [0.616, 0.941, 0.949], "opacity": 0.9 },
+              { "type": "arrow", "from": [-1.1,-0.4], "to": [-0.85,-0.3], "headRatio": 0.3, "headWidth": 0.08, "shaftWidth": 0.04, "color": [0.616, 0.941, 0.949], "opacity": 0.9 },
+              { "type": "arrow", "from": [-0.1,0.6], "to": [-0.15,0.4], "headRatio": 0.3, "headWidth": 0.08, "shaftWidth": 0.04, "color": [0.616, 0.941, 0.949], "opacity": 0.9 }
             ]
           }'></pc-script-instance>
         </pc-script>
       </pc-entity>
-      <!-- Annotation 3: Home of interviewee -->
-      <pc-entity name="annotation3" position="-0.3 0.3 0.1">
+      <!-- Annotation 3: Unpassable road -->
+      <pc-entity name="annotation3" position="-0.48 -0.3 0.1">
         <pc-script>
           <pc-script-instance name="annotation" attributes='{
             "label": "3",
-            "title": "Home",
-            "text": "The home location of the interviewee."
+            "title": "Unpassable road",
+            "text": "The road is unpassable due to flooding."
           }'></pc-script-instance>
           <pc-script-instance name="polygonHighlight" attributes='{
             "zOffset": 0.02,
             "shapes": [
-              { "type": "star", "center": [-0.3, 0.3], "outerRadius": 0.08, "innerRadius": 0.03, "points": 5, "color": [1, 1, 0], "opacity": 0.7 }
+              { "type": "polygon", "points": [[-0.628, 0.024], [-0.67, -0.004], [-0.332, -0.524], [-0.29, -0.496]], "cornerRadius": 0.01, "lineWidth": 0.008, "color": [1, 0, 0], "opacity": 0.9, "fillOpacity": 0.0 },
+              { "type": "polygon", "points": [[-0.002, 0.237], [-0.067, 0.191], [0.162, -0.137], [0.227, -0.091]], "cornerRadius": 0.01, "lineWidth": 0.008, "color": [1, 0, 0], "opacity": 0.9, "fillOpacity": 0.0 }
+            ]
+          }'></pc-script-instance>
+        </pc-script>
+      </pc-entity>
+      <!-- Annotation 4: Unpassable road -->
+      <pc-entity name="annotation4" position="-0.8 -0.8 0.1">
+        <pc-script>
+          <pc-script-instance name="annotation" attributes='{
+            "label": "4",
+            "title": "Annual flooding event area"
+          }'></pc-script-instance>
+          <pc-script-instance name="polygonHighlight" attributes='{
+            "zOffset": 0.02,
+            "shapes": [
+              { "type": "polygon", "points": [[-0.088, 1.248], [-1.765, 0.159], [-1.112, -0.848], [0.565, 0.241]], "cornerRadius": 0.1, "dash": 0.025, "gap": 0.015, "lineWidth": 0.008, "color": [1, 0.525, 0], "opacity": 0.9, "fillOpacity": 0.0 }
             ]
           }'></pc-script-instance>
         </pc-script>
